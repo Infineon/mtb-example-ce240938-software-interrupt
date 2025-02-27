@@ -40,7 +40,6 @@
 * so agrees to indemnify Cypress against all liability.
 *******************************************************************************/
 
-
 /******************************************************************************
 * Include header files
 *******************************************************************************/
@@ -49,6 +48,7 @@
 #include "cy_retarget_io.h"
 #include "cy_sysint.h"
 #include "cy_tcpwm_counter.h"
+#include "mtb_hal.h"
 
 /******************************************************************************
 * Macros
@@ -65,6 +65,10 @@ const cy_stc_sysint_t IRQ_CFG_PERIPHERAL =
     .intrSrc  = ((NvicMux5_IRQn << 16) | tcpwm_0_interrupts_1_IRQn),
     .intrPriority = 3UL
 };
+
+/* For the Retarget -IO (Debug UART) usage */
+static cy_stc_scb_uart_context_t    UART_context;           /** UART context */
+static mtb_hal_uart_t               UART_hal_obj;           /** Debug UART HAL object  */
 
 /******************************************************************************
  * Function Name: handle_Counter_Interrupt_0
@@ -130,6 +134,8 @@ static void init_Timer_Interrupt(void)
  */
 int main(void)
 {
+    cy_rslt_t result;
+
     /* Variable for storing character read from terminal */
     uint8_t uartReadValue;
 
@@ -142,10 +148,33 @@ int main(void)
     /* Enable global interrupts */
     __enable_irq();
 
-    /* Initialize retarget-io to use the debug UART port */
-    Cy_SCB_UART_Init(UART_HW, &UART_config, NULL);
+    /* Debug UART init */
+    result = (cy_rslt_t)Cy_SCB_UART_Init(UART_HW, &UART_config, &UART_context);
+
+    /* UART init failed. Stop program execution */
+    if (result != CY_RSLT_SUCCESS)
+    {
+        CY_ASSERT(0);
+    }
+
     Cy_SCB_UART_Enable(UART_HW);
-    cy_retarget_io_init(UART_HW);
+
+    /* Setup the HAL UART */
+    result = mtb_hal_uart_setup(&UART_hal_obj, &UART_hal_config, &UART_context, NULL);
+
+    /* HAL UART init failed. Stop program execution */
+    if (result != CY_RSLT_SUCCESS)
+    {
+        CY_ASSERT(0);
+    }
+
+    result = cy_retarget_io_init(&UART_hal_obj);
+
+    /* HAL retarget_io init failed. Stop program execution */
+    if (result != CY_RSLT_SUCCESS)
+    {
+        CY_ASSERT(0);
+    }
 
     Cy_GPIO_Pin_Init(CYBSP_LED2_PORT, CYBSP_LED2_PIN, &CYBSP_LED2_config);
 
